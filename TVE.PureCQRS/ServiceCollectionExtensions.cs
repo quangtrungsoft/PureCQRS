@@ -41,7 +41,7 @@ public static class ServiceCollectionExtensions
             services.TryAddSingleton(new GenericRequestHandlerRegistry(openGenericHandlers));
         }
 
-        // OPTIMIZATION vs MediatR: the exception pipeline behaviors are added ONLY when the
+        // OPTIMIZATION: the exception pipeline behaviors are added ONLY when the
         // scanned assemblies actually contain exception handlers/actions. Apps that don't use
         // exception handling keep the zero-behavior fast path with no try/catch overhead.
         // Registered before user behaviors so the processor is the OUTERMOST step and can
