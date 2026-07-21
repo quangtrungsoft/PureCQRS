@@ -13,11 +13,14 @@ public sealed class Mediator : IMediator
     private static readonly ConcurrentDictionary<Type, RequestHandlerBase> _requestHandlers = new();
     private static readonly ConcurrentDictionary<Type, NotificationHandlerWrapper> _notificationHandlers = new();
 
+    /// <summary>Creates the mediator over the given service provider used to resolve handlers.</summary>
+    /// <param name="serviceProvider">The application service provider.</param>
     public Mediator(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;
     }
 
+    /// <inheritdoc />
     public Task<TResponse> Send<TResponse>(
         IRequest<TResponse> request,
         CancellationToken cancellationToken = default)
@@ -35,23 +38,15 @@ public sealed class Mediator : IMediator
         return wrapper.Handle(request, _serviceProvider, cancellationToken);
     }
 
+    /// <inheritdoc />
     public Task Send(IRequest request, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(request);
-
-        var requestType = request.GetType();
-
-        var wrapper = (RequestHandlerWrapperVoid)_requestHandlers.GetOrAdd(
-            requestType,
-            static t =>
-            {
-                var wrapperType = typeof(RequestHandlerWrapperVoidImpl<>).MakeGenericType(t);
-                return (RequestHandlerBase)Activator.CreateInstance(wrapperType)!;
-            });
-
-        return wrapper.Handle(request, _serviceProvider, cancellationToken);
+        // A void command is an IRequest<Unit>, so it flows through the same pipeline
+        // (behaviors + exception handling) as any value-returning request.
+        return Send<Unit>(request, cancellationToken);
     }
 
+    /// <inheritdoc />
     public Task<object?> Send(object request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -59,30 +54,18 @@ public sealed class Mediator : IMediator
         var requestType = request.GetType();
         var responseType = GetResponseType(requestType);
 
-        if (responseType != null)
+        // Void commands surface as IRequest<Unit>, so responseType is Unit here.
+        if (responseType is null)
         {
-            var wrapper = _requestHandlers.GetOrAdd(
-                requestType,
-                CreateWrapper,
-                responseType);
-
-            return wrapper.Handle(request, _serviceProvider, cancellationToken);
+            throw new InvalidRequestException(requestType);
         }
 
-        if (typeof(IRequest).IsAssignableFrom(requestType))
-        {
-            var wrapper = _requestHandlers.GetOrAdd(
-                requestType,
-                static t =>
-                {
-                    var wrapperType = typeof(RequestHandlerWrapperVoidImpl<>).MakeGenericType(t);
-                    return (RequestHandlerBase)Activator.CreateInstance(wrapperType)!;
-                });
+        var wrapper = _requestHandlers.GetOrAdd(
+            requestType,
+            CreateWrapper,
+            responseType);
 
-            return wrapper.Handle(request, _serviceProvider, cancellationToken);
-        }
-
-        throw new InvalidRequestException(requestType);
+        return wrapper.Handle(request, _serviceProvider, cancellationToken);
     }
 
     /// <summary>
