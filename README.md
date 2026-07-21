@@ -4,6 +4,16 @@
 
 This is a complete implementation of the TVE.PureCQRS pattern in C#. It provides a lightweight, flexible mediator for handling requests, queries, commands, and notifications with support for pipeline behaviors (cross-cutting concerns).
 
+## New in v1.1.0
+
+- **`CancellationToken` in the pipeline delegate** — `RequestHandlerDelegate<TResponse>` now takes a `CancellationToken`; behaviors should call `next(cancellationToken)`. Existing `next()` calls still compile.
+- **Covariant (polymorphic) notification dispatch** — a notification reaches handlers registered for its concrete type *and* for any base type / notification interface it derives from, independent of the DI container.
+- **Exception handlers & actions** — `IRequestExceptionHandler<TRequest, TResponse, TException>` (recover + fallback) and `IRequestExceptionAction<TRequest, TException>` (side-effects). Wired into the pipeline only when such handlers exist, so the zero-behavior fast path is preserved otherwise.
+- **Void commands run through the full pipeline** — `IRequest` is modelled as `IRequest<Unit>`, so commands now go through behaviors and exception handling just like value-returning requests.
+- **Constrained open-generic request handlers** — handlers such as `WrapHandler<T> : IRequestHandler<WrapQuery<T>, Box<T>>` are closed at runtime for the concrete request/response pair (including arity mismatches the DI container can't handle), with generic-constraint validation and a cached `ObjectFactory`.
+
+See [release notes](TVE.PureCQRS/docs/releasenotes/v1.1.0.md) for details.
+
 ## Architecture
 
 ```
